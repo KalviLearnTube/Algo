@@ -1,0 +1,54 @@
+{
+    "manifest_version": 3,
+    "name": "KalviumLearnTube",
+    "version": "1.0.0", 
+    "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuUbwBj0QZag1BpjzfqHj3Y4wamsvExSE6qh2XSmj7q2GV2YPnIKwr3TWGJiVdtUKNBhLde8zy67h41w8WZjXrckHO1uo90CUxdIGvBPFcrqEquXQrLF/feEXjmSOQuy/FCkH65gFQiTa5CYbL7Hexe34Sot2thdR5rSSBN/PGny4x4tNbixf45lw9+bRu6HhWtVOV4M42nFXQPnjojvzPOERkzvikJgxqBNn2v9ruruiu8Rpaddve19Td/SIusoOQ92b4+QOkvmo9hLxYyEwaMKCsuqOgKswMn5UUyGhaMtHkivPc5ivcfj9aJqD/U6kYwgV+lFMArGEOI37blodIQIDAQAB",
+    "description": "Provide free education for everyone, supporting both students who excel and those who struggle, ensuring no one is left behind.",
+    "permissions": ["scripting", "storage", "tabs", "activeTab", "contextMenus","identity","identity.email"],
+    "host_permissions": ["<all_urls>"],
+    "action": {
+      "default_popup": "index.html"
+    },
+    "background": {
+      "service_worker": "background.js"
+    },
+    "content_scripts": [
+      {
+        "matches": ["<all_urls>"],
+        "js": ["content.js"]
+      }
+    ],
+    "oauth2": {
+      "client_id": "810226153127-pqtquduqgf8vnfi5ljj674kodaon641c.apps.googleusercontent.com",
+      "scopes": [
+        "https://www.googleapis.com/auth/userinfo.email",
+        "https://www.googleapis.com/auth/calendar.events",
+        "https://www.googleapis.com/auth/calendar.events.readonly",
+        "https://www.googleapis.com/auth/youtube.readonly"
+      ]
+    },
+    "commands": {
+      "open-extension": {
+        "suggested_key": {
+          "default": "Ctrl+Shift+O",
+          "mac": "Command+Shift+O"
+        },
+        "description": "Open the extension popup"
+      },
+      "extract-data": {
+        "suggested_key": {
+          "default": "Ctrl+Shift+X",
+          "mac": "Command+Shift+X"
+        },
+        "description": "Extract selected text"
+      },
+      "save-event": {
+        "suggested_key": {
+          "default": "Ctrl+Shift+S",
+          "mac": "Command+Shift+S"
+        },
+        "description": "Save the event"
+      }
+    }
+  }
+  
