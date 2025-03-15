@@ -1,4 +1,4 @@
-chrome.runtime.onInstalled((b) => {
+chrome.runtime.onInstalled.addListener((b) => {
   if (b.reason === "install") {
     console.log("billionaire");
   } else if (b.reason === "update") {
