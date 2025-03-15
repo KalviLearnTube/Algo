@@ -1,22 +1,23 @@
-import './App.css'
-import { Route, Router, Routes } from 'react-router-dom'
+import { HashRouter, Link, Route, Routes } from 'react-router-dom'
 import Onboard from './pages/onboard'
 import Hero from './pages/hero'
 import Unique_hero from './pages/unique_hero'
+// import "./index.css"
 
 function App() {
 
 
   return (
-    <Router>
+    <HashRouter>
+      {/* <Link to={"/onboard"}>onboard</Link> */}
       {/* top header */}
       <Routes>
-        <Route path='' element={<Onboard />} />
-        <Route path='' element={<Hero />} />
-        <Route path='' element={<Unique_hero />} />
+        <Route path='/onboard' element={<Onboard />} />
+        <Route path='/hero' element={<Hero />} />
+        <Route path='/hero/:id' element={<Unique_hero />} />
       </Routes>
       {/* bottom menu */}
-    </Router>
+    </HashRouter>
   )
 }
 
