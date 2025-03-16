@@ -1,145 +1,125 @@
-// background.js - Handles API calls and recommendation generation
+const YOUTUBE_API_KEY = "AIzaSyATC4q6RDehb_rKg1W9Shht7imrazsbg28";
+const GEMINI_API_KEY = "AIzaSyCPrH4D9ZCaECa1djVPhUzqIqP8lr9QIxI";
 
-// Cache for API responses
-const cache = {
-    embeddings: {},
-    recommendations: {}
-  };
-  
-  // Hardcoded API keys
-  const API_KEYS = {
-    youtubeApiKey: 'AIzaSyATC4q6RDehb_rKg1W9Shht7imrazsbg28',
-    geminiApiKey: 'AIzaSyCPrH4D9ZCaECa1djVPhUzqIqP8lr9QIxI'
-  };
-  
-  // Function to get video embeddings from Gemini
-  async function getVideoEmbedding(text) {
-    try {
-      // Check cache first
-      const cacheKey = text.substring(0, 100); 
-      if (cache.embeddings[cacheKey]) {
-        return cache.embeddings[cacheKey];
-      }
-      
-      const geminiApiKey = API_KEYS.geminiApiKey;
-      if (!geminiApiKey) {
-        console.error('Gemini API key not found');
-        return null;
-      }
-      
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1/models/embedding-001:embedContent?key=${geminiApiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content: { parts: [{ text }] },
-            taskType: "RETRIEVAL_DOCUMENT"
-          })
-        }
-      );
-      
-      const data = await response.json();
-      const embedding = data.embedding?.values || null;
-      
-      // Cache the result
-      if (embedding) {
-        cache.embeddings[cacheKey] = embedding;
-      }
-      
-      return embedding;
-    } catch (error) {
-      console.error("Error fetching embedding:", error);
-      return null;
-    }
+chrome.sidePanel.setOptions({ path: 'index.html' });
+
+chrome.action.onClicked.addListener((tab) => {
+  chrome.sidePanel.open({ tabId: tab.id });
+});
+
+const embeddingCache = new Map();
+
+async function getVideoEmbedding(text) {
+  const cacheKey = text.slice(0, 100);
+  if (embeddingCache.has(cacheKey)) {
+    return embeddingCache.get(cacheKey);
   }
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1/models/embedding-001:embedContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: { parts: [{ text }] },
+          taskType: "RETRIEVAL_DOCUMENT"
+        })
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Embedding API error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const embedding = data.embedding?.values;
+    
+    if (embedding) {
+      embeddingCache.set(cacheKey, embedding);
+      if (embeddingCache.size > 1000) {
+        const oldestKey = embeddingCache.keys().next().value;
+        embeddingCache.delete(oldestKey);
+      }
+    }
+
+    return embedding;
+  } catch (error) {
+    console.error("Error fetching embedding:", error);
+    return null;
+  }
+}
+
+async function fetchRecommendedVideos(searchQuery, maxRetries = 3) {
+  let lastError;
   
-  // Function to fetch YouTube recommended videos
-  async function fetchRecommendedVideos(searchQuery) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      const youtubeApiKey = API_KEYS.youtubeApiKey;
-      if (!youtubeApiKey) {
-        console.error('YouTube API key not found');
-        return [];
-      }
-      
-      // Cache key for this search
-      const cacheKey = `search_${searchQuery}`;
-      if (cache.recommendations[cacheKey]) {
-        return cache.recommendations[cacheKey];
-      }
-      
-      const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(searchQuery)}&type=video&maxResults=20&key=${youtubeApiKey}`;
+      const enhancedQuery = `${searchQuery} education`;
+      const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(enhancedQuery)}&type=video&videoDuration=long&videoDefinition=high&maxResults=50&key=${YOUTUBE_API_KEY}`;
       
       const response = await fetch(url);
-      const data = await response.json();
       
-      if (!data.items) {
-        console.error('No items found in YouTube response:', data);
-        return [];
+      if (!response.ok) {
+        throw new Error(`YouTube API error: ${response.statusText}`);
       }
-      
-      const videos = data.items.map(video => ({
+
+      const data = await response.json();
+      console.log("RECOMMENDED VIDEOS",data);
+
+      if (!data.items || !Array.isArray(data.items)) {
+        throw new Error('Invalid response format from YouTube API');
+      }
+
+      return data.items.map(video => ({
         id: video.id.videoId,
         title: video.snippet.title,
         description: video.snippet.description || "",
-        fullText: `${video.snippet.title} ${video.snippet.description || ""}`
+        fullText: `${video.snippet.title} ${video.snippet.description || ""}`,
+        thumbnail: video.snippet.thumbnails.high?.url || video.snippet.thumbnails.default?.url,
+        channelTitle: video.snippet.channelTitle
       }));
-      
-      // Cache the results
-      cache.recommendations[cacheKey] = videos;
-      
-      return videos;
     } catch (error) {
-      console.error("Error fetching YouTube videos:", error);
-      return [];
-    }
-  }
-  
-  // Function to process liked videos
-  async function processLikedVideos(likedVideos) {
-    const processed = [];
-    
-    for (const video of likedVideos) {
-      try {
-        const text = `${video.title} ${video.description || ""}`;
-        const embedding = await getVideoEmbedding(text);
-        if (embedding) {
-          processed.push({ ...video, embedding });
-        }
-      } catch (error) {
-        console.error(`Error processing liked video: ${video.title}`, error);
+      console.error(`Attempt ${attempt + 1} failed:`, error);
+      lastError = error;
+      
+      if (attempt === maxRetries - 1) {
+        throw new Error(`Failed to fetch videos after ${maxRetries} attempts: ${lastError.message}`);
       }
+      
+      await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
     }
+  }
+}
+
+async function processLikedVideos(likedVideos, batchSize = 5) {
+  const results = [];
+  
+  for (let i = 0; i < likedVideos.length; i += batchSize) {
+    const batch = likedVideos.slice(i, i + batchSize);
+    const batchPromises = batch.map(async (video) => {
+      const embedding = await getVideoEmbedding(video.title + " " + video.description);
+      return embedding ? { ...video, embedding } : null;
+    });
     
-    return processed;
+    const batchResults = await Promise.all(batchPromises);
+    results.push(...batchResults.filter(video => video !== null));
   }
   
-  // Function to process recommended videos
-  async function processRecommendedVideos(searchQuery) {
-    const videos = await fetchRecommendedVideos(searchQuery);
-    const processed = [];
-    
-    for (const video of videos) {
-      try {
-        const embedding = await getVideoEmbedding(video.fullText);
-        if (embedding) {
-          processed.push({ ...video, embedding });
-        }
-      } catch (error) {
-        console.error(`Error processing recommended video: ${video.title}`, error);
-      }
-    }
-    
-    return processed;
+  return results;
+}
+
+async function processRecommendedVideos(searchQuery) {
+  const videos = await fetchRecommendedVideos(searchQuery);
+  return processLikedVideos(videos);
+}
+
+function cosineSimilarity(vec1, vec2) {
+  if (!Array.isArray(vec1) || !Array.isArray(vec2) || vec1.length !== vec2.length) {
+    return 0;
   }
   
-  // Function to calculate cosine similarity between two vectors
-  function cosineSimilarity(vec1, vec2) {
-    if (vec1.length !== vec2.length) {
-      throw new Error("Vectors must have the same length");
-    }
-    
+  try {
     let dotProduct = 0;
     let mag1 = 0;
     let mag2 = 0;
@@ -158,132 +138,117 @@ const cache = {
     }
     
     return dotProduct / (mag1 * mag2);
+  } catch (error) {
+    console.error('Error calculating similarity:', error);
+    return 0;
+  }
+}
+
+function findBestMatches(likedVideos, recommendedVideos, maxRecommendations = 10, minSimilarity = 0.5) {
+  if (!Array.isArray(likedVideos) || !Array.isArray(recommendedVideos) || likedVideos.length === 0 || recommendedVideos.length === 0) {
+    return recommendedVideos.slice(0, maxRecommendations);
   }
   
-  // Function to find the best matches with a similarity threshold
-  function findBestMatches(likedVideos, recommendedVideos, maxRecommendations = 5, minSimilarity = 0.5) {
- 
-    if (likedVideos.length === 0 || recommendedVideos.length === 0) {
-      console.log("Not enough data for recommendations.");
-      return [];
-    }
-    
-    // For each recommended video, find its similarity to the liked videos
+  try {
     const results = recommendedVideos.map(recVideo => {
-      // Find the highest similarity with any of the liked videos
       let maxSimilarity = -1;
       let bestMatch = null;
       
       for (const likedVideo of likedVideos) {
+        if (!recVideo.embedding || !likedVideo.embedding) continue;
+        
         const similarity = cosineSimilarity(recVideo.embedding, likedVideo.embedding);
         if (similarity > maxSimilarity) {
           maxSimilarity = similarity;
-          bestMatch = likedVideo;
+          bestMatch = likedVideo.title;
         }
       }
       
       return {
-        id: recVideo.id,
-        title: recVideo.title,
-        description: recVideo.description,
+        ...recVideo,
         similarity: maxSimilarity,
-        matchedWith: bestMatch ? bestMatch.title : null
+        matchedWith: bestMatch
       };
     });
     
-    // Sort by similarity (higher is better for cosine similarity)
-    const sortedResults = results.sort((a, b) => b.similarity - a.similarity);
-    
-    // Filter by minimum similarity threshold and limit to maxRecommendations
-    return sortedResults
+    return results
       .filter(item => item.similarity >= minSimilarity)
+      .sort((a, b) => b.similarity - a.similarity)
       .slice(0, maxRecommendations);
+  } catch (error) {
+    console.error('Error finding matches:', error);
+    return recommendedVideos.slice(0, maxRecommendations);
   }
-  
-  // Main function to generate recommendations
-  async function generateRecommendations(searchQuery, likedVideos) {
-    try {
-      console.log(`Generating recommendations for "${searchQuery}" with ${likedVideos.length} liked videos`);
-      
-      // Process the liked videos to get embeddings
-      const processedLikedVideos = await processLikedVideos(likedVideos);
-      if (processedLikedVideos.length === 0) {
-        console.error('No processed liked videos available');
-        return [];
-      }
-      
-      // Process the recommended videos from search query
-      const processedRecommendedVideos = await processRecommendedVideos(searchQuery);
-      if (processedRecommendedVideos.length === 0) {
-        console.error('No processed recommended videos available');
-        return [];
-      }
-      
-      // Find the best matches
-      const personalizedRecommendations = findBestMatches(
-        processedLikedVideos,
-        processedRecommendedVideos,
-        5, // Max recommendations
-        0.5 // Minimum similarity threshold
-      );
-      
-      console.log('Generated recommendations:', personalizedRecommendations);
-      return personalizedRecommendations;
-    } catch (error) {
-      console.error('Error generating recommendations:', error);
-      return [];
+}
+
+async function searchVideosAndRecommend(searchQuery) {
+  try {
+    const token = await new Promise((resolve, reject) => {
+      chrome.identity.getAuthToken({ interactive: false }, (token) => {
+        if (chrome.runtime.lastError) {
+          reject(chrome.runtime.lastError);
+          return;
+        }
+        resolve(token);
+      });
+    });
+
+    const processedRecommendedVideos = await processRecommendedVideos(searchQuery);
+
+    if (!token) {
+      return processedRecommendedVideos.slice(0, 5);
     }
-  }
-  
-  // Listen for messages from content script
-  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === 'getPersonalizedRecommendations') {
-      const { searchQuery, likedVideos } = request;
-      
-      if (!searchQuery) {
-        sendResponse({ error: 'No search query provided' });
-        return true;
+
+    const response = await fetch(
+      `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&playlistId=LL`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
       }
-      
-      if (!likedVideos || likedVideos.length === 0) {
-        sendResponse({ error: 'No liked videos provided' });
-        return true;
-      }
-      
-      // Generate recommendations asynchronously
-      generateRecommendations(searchQuery, likedVideos)
-        .then(recommendations => {
-          sendResponse({ recommendations });
-        })
-        .catch(error => {
-          console.error('Error in recommendation generation:', error);
-          sendResponse({ error: error.message });
+    );
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        await new Promise((resolve) => {
+          chrome.identity.removeCachedAuthToken({ token: token }, resolve);
         });
-      
-      // Return true to indicate we will send a response asynchronously
-      return true;
+        throw new Error('Authentication expired');
+      }
+      throw new Error(`Failed to fetch liked videos: ${response.statusText}`);
     }
-  });
-  
-  // Add side panel functionality
-  chrome.runtime.onInstalled.addListener((details) => {
-    // Enable the side panel
-    if (chrome.sidePanel) {
-      chrome.sidePanel.setOptions({
-        enabled: true
-      });
-    }
+
+    const data = await response.json();
+    const processedLikedVideos = await processLikedVideos(data.items);
     
-    if (details.reason === 'install') {
-      // Set default settings on install
-      chrome.storage.local.set({
-        maxRecommendations: 5,
-        minSimilarity: 0.5
-      });
-    }
-  });
-  
-  // Open the side panel when extension icon is clicked
-  if (chrome.action) {
-    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+    return findBestMatches(processedLikedVideos, processedRecommendedVideos);
+  } catch (error) {
+    console.error('Error in searchVideosAndRecommend:', error);
+    throw error;
   }
+}
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log('Background script received message:', message);
+  
+  if (message.action === "searchVideos") {
+    console.log('Processing search request for query:', message.query);
+    searchVideosAndRecommend(message.query)
+      .then(recommendations => {
+        console.log('Search completed, recommendations:', recommendations);
+        sendResponse({ success: true, recommendations });
+      })
+      .catch(error => {
+        console.error("Error in searchVideos:", error);
+        sendResponse({ success: false, error: error.message });
+      });
+    return true;
+  }
+});
+
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason === "install") {
+    console.log("YouTube Feed Customizer installed");
+  }
+});

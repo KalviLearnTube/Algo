@@ -1,12 +1,31 @@
-# React + Vite
+# Glgo - Personalized YouTube Video Recommendations
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Glgo is a personalized YouTube video recommendation engine that leverages your liked videos and search queries to provide relevant and engaging content.
 
-Currently, two official plugins are available:
+## How It Works
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+1.  Fetches Liked Videos: Retrieves your liked videos from the YouTube API.
+2.  Fetches Search Results: Fetches search results based on a user-provided query.
+3.  Generates Text Embeddings: Utilizes the Gemini API to generate text embeddings for video titles and descriptions.
+4.  Calculates Cosine Similarity: Employs cosine similarity to determine the relevance between your liked videos and search results.
+5.  Provides Personalized Recommendations: Returns a list of video recommendations tailored to your preferences.
 
-## Expanding the ESLint configuration
+## Technical Overview
 
-If you are developing a production application, we recommend using TypeScript and enable type-aware lint rules. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+* In-Memory Caching: Implements in-memory caching for API responses and embeddings to improve performance.
+* Batch Processing: Uses batch processing for efficient embedding generation.
+* Efficient Similarity Calculations: Leverages cosine similarity for fast and accurate relevance assessment.
+* Modular Design: Features structured and modular functions for maintainability and scalability.
+
+## The Matching Magic: Cosine Similarity
+
+Glgo uses cosine similarity to find videos that align with your interests. Here's how it works:
+
+1.  Vector Representation: Each video's text (title and description) is converted into a vector (an "arrow" in multi-dimensional space).
+2.  Comparison: Your liked videos' vectors are compared with the vectors of search results.
+3.  Similarity Score: Videos with vectors pointing in similar directions are considered more relevant, resulting in a higher similarity score (between 0 and 1).
+4.  Threshold: Only videos with a similarity score above 0.5 are recommended.
+
+## Future Enhancements
+
+* FAISS Implementation: Explore the use of FAISS (Facebook AI Similarity Search) for faster and more scalable similarity search, especially as the video database grows.
