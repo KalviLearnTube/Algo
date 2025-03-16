@@ -1,31 +1,51 @@
-# Glgo - Personalized YouTube Video Recommendations
+# Glgo - Your Personal YouTube Discovery Engine
 
-Glgo is a personalized YouTube video recommendation engine that leverages your liked videos and search queries to provide relevant and engaging content.
+Glgo is an intelligent recommendation system that analyzes your YouTube preferences to surface videos you'll genuinely want to watch. By examining your liked videos and search interests, Glgo creates a tailored viewing experience that goes beyond standard YouTube recommendations.
 
-## How It Works
+## How Glgo Works
 
-1.  Fetches Liked Videos: Retrieves your liked videos from the YouTube API.
-2.  Fetches Search Results: Fetches search results based on a user-provided query.
-3.  Generates Text Embeddings: Utilizes the Gemini API to generate text embeddings for video titles and descriptions.
-4.  Calculates Cosine Similarity: Employs cosine similarity to determine the relevance between your liked videos and search results.
-5.  Provides Personalized Recommendations: Returns a list of video recommendations tailored to your preferences.
+1. **YouTube Data Collection**: Fetches your liked videos and search results through the YouTube API
+2. **Text Embedding Generation**: Converts video titles and descriptions into vector representations using Gemini's embedding model
+3. **Similarity Analysis**: Compares your preferences with potential recommendations using cosine similarity measurements
+4. **Personalized Delivery**: Presents you with videos that match your unique interests, filtered through a relevance threshold
 
-## Technical Overview
+## Technical Foundation
 
-* In-Memory Caching: Implements in-memory caching for API responses and embeddings to improve performance.
-* Batch Processing: Uses batch processing for efficient embedding generation.
-* Efficient Similarity Calculations: Leverages cosine similarity for fast and accurate relevance assessment.
-* Modular Design: Features structured and modular functions for maintainability and scalability.
+### Embedding API Implementation
 
-## The Matching Magic: Cosine Similarity
+Glgo uses Gemini's specialized embedding model rather than the standard Gemini Flash API:
 
-Glgo uses cosine similarity to find videos that align with your interests. Here's how it works:
+```javascript
+const response = await fetch(
+  `https://generativelanguage.googleapis.com/v1/models/embedding-001:embedContent?key=${GEMINI_API_KEY}`,
+  {
+    method: 'POST',
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      content: { parts: [{ text }] },
+      taskType: "RETRIEVAL_DOCUMENT"
+    })
+  }
+);
+```
 
-1.  Vector Representation: Each video's text (title and description) is converted into a vector (an "arrow" in multi-dimensional space).
-2.  Comparison: Your liked videos' vectors are compared with the vectors of search results.
-3.  Similarity Score: Videos with vectors pointing in similar directions are considered more relevant, resulting in a higher similarity score (between 0 and 1).
-4.  Threshold: Only videos with a similarity score above 0.5 are recommended.
+### Performance Optimizations
 
-## Future Enhancements
+- **Intelligent Caching**: Stores API responses and embeddings in memory to reduce redundant processing
+- **Batch Processing**: Groups embedding generation tasks for efficiency
+- **Modular Architecture**: Utilizes well-structured, independent functions for improved maintainability
 
-* FAISS Implementation: Explore the use of FAISS (Facebook AI Similarity Search) for faster and more scalable similarity search, especially as the video database grows.
+## The Science Behind Recommendations: Cosine Similarity
+
+Glgo's recommendation engine relies on cosine similarity - a mathematical technique that measures the directional similarity between vectors:
+
+1. Each video is transformed into a multi-dimensional vector based on its content
+2. These vectors capture the semantic essence of the videos
+3. Videos with vectors pointing in similar directions receive higher similarity scores (0-1)
+4. Only videos scoring above 0.5 qualify for recommendation, ensuring quality matches
+
+## Future Development Roadmap
+
+- **FAISS Integration**: Plans to implement Facebook AI Similarity Search for dramatically improved speed and scalability as the video database expands
+- **Enhanced Content Analysis**: Deeper understanding of video themes and context
+- **User Preference Learning**: Adaptive system that evolves with your changing interests
