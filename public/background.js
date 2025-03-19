@@ -9,6 +9,8 @@ chrome.action.onClicked.addListener((tab) => {
 
 const embeddingCache = new Map();
 
+
+
 async function getVideoEmbedding(text) {
   const cacheKey = text.slice(0, 100);
   if (embeddingCache.has(cacheKey)) {
