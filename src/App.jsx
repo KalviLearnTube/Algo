@@ -4,6 +4,9 @@ import CoursesGrid from "./components/CourseGrid";
 import VideoGrid from "./components/VideoGrid";
 
 function App() {
+
+
+  
   const [query, setQuery] = useState('');
   const [likedVideos, setLikedVideos] = useState([]);
   const [loading, setLoading] = useState(false);
